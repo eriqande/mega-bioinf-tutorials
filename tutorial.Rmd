@@ -1,6 +1,8 @@
 ---
 title: "Using List Columns (tibble, tidyr, purrr)"
-output: github_document
+output: 
+  github_document:
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -32,7 +34,8 @@ a data frame as input, and they produce complex output, so they are not amenable
 a quick `summarise()` on a grouped data frame.  But they are amenable to operation
 on nested data frames.  The basic steps in the analysis are:
 
-1. Make a tibble that has a subset of the data (subset by locus and population)
+1. Make a tibble that has a subset of the data (subset by locus and also Nimbus Hatchery
+versus not Nimbus Hatchery)
 2. Make a design matrix that is specific to the locus.  The main inputs that change
 for these are the genotypes.
 3. Add the design matrix columns on by joining on genotype
@@ -84,9 +87,411 @@ From the same google drive folder linked above, you can download the data set,
 Then read it in and have a look at it:
 ```{r}
 fyke_grebs <- read_rds("fyke_grebs.rds")
+
+fyke_grebs
 ```
 
+There is a lot of stuff there.  Let's look at the number of records for different
+subsets we will be breaking it out into:
+```{r}
+fyke_grebs %>%
+  count(collection, Locus_new)
+```
+
+We also count up states of variables used in the modeling.
+
+Year:
+```{r}
+fyke_grebs %>%
+  count(year)
+```
+Sex:
+```{r}
+fyke_grebs %>%
+  count(sex)
+```
+
+age_spawn:
+```{r}
+fyke_grebs %>%
+  count(age_spawn)
+```
+
+OK, when we use these in modeling, we will want them to be factors.  Let's make
+factor versions of each, noting that `?` is missing data for sex.
+
+And we also want to have another column called `group` that tells us whether the
+ancestry of the fish is Central Valley (all collections except NH) or not (NH)
+```{r}
+fyke_grebs2 <- fyke_grebs %>%
+  mutate(
+    sex_f = ifelse(sex == "?", NA, sex) %>% factor(),
+    year_f = factor(year),
+    age_spawn_f = factor(age_spawn),
+    group = ifelse(collection == "NH", "NH", "CV")
+  )
+
+# then check that this gave reasonable results
+levels(fyke_grebs2$year_f)
+levels(fyke_grebs2$age_spawn_f)
+levels(fyke_grebs2$sex_f)
+```
+
+OK! `fyke_grebs2` is, now, what we want to use. 
 
 ## Make a tibble of tibbles---each with a subet of data
 
-With this step, we are going to 
+With this step, we are going to transform fyke_grebs2 into a new tibble that has
+a list column that itself holds different tibbles.  To do this we use the
+`nest()` function from the 'tidyr' package, which is loaded as part of the
+tidyverse.  With no other arguments, `nest()`
+operates like a `summarise()` on a _grouped tibble_.  But the summary option is
+simply _take all the rows within each level of grouping variables and squash them
+down into a separate tibble in a list column that is named `data` by default_.  Let's do it:
+```{r}
+fg_nests <- fyke_grebs2 %>%
+  group_by(group, Locus_new) %>%
+  nest()
+
+fg_nests
+```
+
+Cool! We see that each row of this new tibble has a different combination of 
+`collection` and `Locus_new` and the default printing of the list column `data` shows
+the size of each tibble that is an element of the list.
+
+This is all well and good, but how do we now get at portions of that tibble (if we
+need them) in a tidyverse-like way?  A simple `mutate()` will not work, because
+`mutate()` expects a vectorized function, and not many functions are vectorized to
+work over the elements of a list.  Aha! But, like `lapply()` the `map()` family
+of functions works over the elements of a list, and we can use that inside of a
+`mutate()`.  Next section shows how.
+
+## Use `map()` get get the genotypes at each locus
+
+If we look back at Laura's original notebook we see that one of the inputs that
+we are going to need for each model run is the actual genotypes at each locus.  If we
+just do a find in the notebook for `genotype = c(` we can see that the genotypes
+are always specified in a vector of genotypes specified like `A/G` and always in
+sorted order. 
+
+Let's make a new nested tibble where we group just on `Locus_new` so that we
+are sure we have all the alleles seen in the whole data set.  Note that there
+are some rows of Locus_new that are NA, so we will toss those.
+```{r}
+fg_locus_nest <- fyke_grebs2 %>%
+  filter(!is.na(Locus_new)) %>%
+  group_by(Locus_new) %>%
+  nest()
+
+fg_locus_nest
+```
+
+We see that is 24 different SNPs.  Let's just look at the tibble in the first row of the
+`data` column:
+```{r}
+fg_locus_nest$data[[1]]
+```
+
+And now let's count the different genotypes in the genotype column:
+```{r}
+fg_locus_nest$data[[1]] %>%
+  count(genotype)
+```
+
+OK, we see that sometimes both homozygotes will not be seen, buy we kind of need them
+for making the design matrices.  So, what we need is a function that finds the
+two alleles, sorts them, and then makes the genotypes out of them.  Let's just play
+around with something for doing that by naming a variable `x` that is `fg_locus_nest$data[[1]]`:
+```{r}
+x <- fg_locus_nest$data[[3]]
+
+# we have to drop missing genotypes:
+y <- x$genotype[!is.na(x$genotype)]
+
+# here is some code that gets the unique alleles in sorted order
+a <- str_split(y, pattern = "/") %>%
+  flatten() %>% 
+  as.character() %>%
+  unique() %>%
+  sort()
+
+a
+
+# and here is code that makes the sorted possible genotypes vector from uniq_alle
+if(length(a) > 1) {
+  paste(
+    c(a[1], a[1], a[2]), 
+    c(a[1], a[2], a[2]), 
+    sep = "/"
+  )
+}
+```
+
+So, here is a function that will return the possible genotypes from a tibble
+with the genotype column:
+```{r}
+possible_genos <- function(x) {
+  y <- x$genotype[!is.na(x$genotype)]
+  
+  # here is some code that gets the unique alleles in sorted order
+  a <- str_split(y, pattern = "/") %>%
+    flatten() %>% 
+    as.character() %>%
+    unique() %>%
+    sort()
+  
+  
+  if(length(a) == 2) {
+    ret <- paste(
+      c(a[1], a[1], a[2]), 
+      c(a[1], a[2], a[2]), 
+      sep = "/"
+    )
+  } else if(length(a) == 1) {
+    ret <- paste(a[1], a[1], sep = "/")
+  } else {
+    stop("Locus with 0 or >2 alleles")
+  }
+  
+  ret
+}
+```
+
+We can test that out like this:
+```{r}
+possible_genos(fg_locus_nest$data[[1]])
+```
+And for a mononorphic locus, like this:
+```{r}
+possible_genos(fg_locus_nest$data[[3]])
+```
+
+That seems to be working.  Note that this function returns a vector of either
+length 1 or 3.  So, if we want to make a column out of the results when we apply
+it to every row of `fg_locus_nest`, then we will have to make that column a list
+column to be able to hold it.  That is a job for the `map()` function from the
+'purrr' package (which is also part of the tidyverse).
+
+`map()` will apply a function (the `.f` argument) to each row of a column
+(the `.x` argument) of a table, and it will return a list column.  So, we can
+use it inside `mutate()` like this:
+```{r}
+locus_genos <- fg_locus_nest %>%
+  mutate(geno_vec = map(.x = data, .f = possible_genos))
+
+locus_genos
+```
+
+## _Typed_ forms of `map()`
+
+Sometimes you know that your function will return an atomic vector, i.e. a vector
+in which each component is a single simple element, and you probably will know what type
+they will all be.  In that case, there are a variety of _typed_ `map()` functions
+that will return an atomic vector (not a list!) and it will check to make sure that
+they type of the vector is correct.  These different forms are:
+
+- `map_lgl()`: expects to reduce output to a logical vector 
+- `map_int()`: expects to reduce output to an integer vector 
+- `map_dbl()`: expects to reduce output to a numeric vector 
+- `map_chr()`: expects to reduce output to a character vector 
+- `map_vec()`: expects to reduce output to an atomic vector of any type 
+
+### Number of genotypes using `map_int()`
+
+We will demonstrate how to use `map_int()` to make a new column that gives the
+number of possible genotypes at each locus.
+```{r}
+locus_genos %>%
+  mutate(num_genos = map_int(.x = geno_vec, .f = length))
+```
+
+That is cool. Note that some of the loci are monomorphic.  We actually don't want to
+hassle with them, because there is nothing interesting to be found there.  So, let's
+just filter those out.  Note that `map_int()` can be used anywhere an atomic vector
+is expected, such as in a `filter()` statement.
+```{r}
+polymorph_genos <- locus_genos %>%
+  filter(map_int(geno_vec, length) == 3) %>%
+  select(Locus_new, geno_vec)  # just keep the columns we need later
+polymorph_genos
+```
+
+So, that is 18 SNPs.
+
+Ultimately, we will want to run linear models on each of those 18 SNPs in the two
+different groups (CV and NH), and when we do that, we need to have those `geno_vec`'s.
+So, let's make a tibble that has all the tibbles we need for `lmer()` and also the
+geno_vec.  We can toss the monomorphic loci in the process in one fell swoop by doing
+an `inner_join()` that only keeps rows with matching keys:
+```{r}
+dat <- fg_nests %>%
+  inner_join(polymorph_genos, by = join_by(Locus_new))
+dat
+```
+
+Note that is 36 rows.  Just like it should be.
+
+## Dealing with three different models
+
+We know that we want to run three different `lmer()` models on each data set:
+
+- year_only model: `mo_da ~ I(d_add) + I(d_dom_with_s) + (1|year)`
+- sex model: `mo_da ~ I(d_add) + I(d_dom_with_s) + sex + (1|year)`
+- age model: `mo_da ~ I(d_add) + I(d_dom_with_s) + age_spawn + (1|year)` 
+
+How can we do this?  Well there are several ways of doing it, but probably the
+tidiest is going to be to lengthen our `dat` tibble to have three rows for
+each combination of `group` and `Locus_new`.  (This is not super space-efficient,
+but it is tidy, and the data sets are not huge).  One way to do this sort of
+expansion of our data sets is using `expand_grid()`.   To use it, we first make
+a tibble that has the models in it.  Recall that we made `_f` versions of the
+variables that are factors.
+```{r}
+model_tib <- tibble(
+  model_name = c("vanilla", "sex", "age"),
+  model_formula = c(
+    mo_da ~ I(d_add) + I(d_dom_with_s) + (1|year_f),
+    mo_da ~ I(d_add) + I(d_dom_with_s) + sex_f + (1|year_f),
+    mo_da ~ I(d_add) + I(d_dom_with_s) + age_spawn_f + (1|year_f)
+  )
+)
+model_tib
+```
+
+Note that the vector for `model_formula` is a list of model formulas.  `tibble()` is
+smart enough to know that such a list should be a column in a tibble.  The same
+cannot be said about `data.frame()`, which is one reason `tibble()` is superior
+for dealing with list columns.
+
+Now we can use `expand_grid()` to get us all combinations of the rows in `dat` with
+the rows in `model_tib`.  
+```{r}
+ready_for_lmer <- expand_grid(dat, model_tib)
+
+ready_for_lmer
+```
+
+This is pretty cool.  We now have a tibble in which each row contains all the things
+we need to run our linear mixed model for certain combination of Locus_new and group:
+
+- the data
+- the vector of possible genotypes
+- the model formula
+
+and we have the model name in there to make it easy to see what model it is.
+
+So, if we had a function that ran `lmer()` with those three inputs and we could
+apply that function to each row of `ready_for_lmer`, we could do that, and put the
+model results into a new list column.
+
+Since the function for doing that will take three inputs, we have to use a generalized
+version of `map()` called `pmap()` (short for "parallel map") with which you can
+pass an arbitrary number of columns---not just 1 (or 2 in the case of `map2()`)---to a function.
+
+Next up is writing a function for running `lmer()`.
+
+## A function to run `lmer()`
+
+This is going to be a function of the data tibble, `D`, the vector of possible genotypes,
+`g` and the model formula, `m`.  Let's make some example variables for testing and
+stuff, by just grabbing elements from the first row of our `ready_for_lmer` tibble.
+```{r}
+D <- ready_for_lmer$data[[1]]
+g <- ready_for_lmer$geno_vec[[1]]
+m <- ready_for_lmer$model_formula[[1]]
+
+D
+g
+m
+```
+
+You don't have to do this, but I find it really helpful when making a function to
+have some test variables.  
+
+Looking back at Laura's notebook we see that the steps in running the model would be...
+
+1. Make the design matrix
+```{r}
+dm <- tibble(
+  genotype = g,
+  ss_ref = c(1, 1, 1),
+  d_add = c(0, 1, 2),
+  d_dom_with_s = c(0, 1, 0)
+)
+
+dm
+```
+
+2. Join the design matrix to the data.
+```{r}
+D2 <- D %>%
+  left_join(dm, by = join_by(genotype))
+```
+
+3. Run `lmer()` with the appropriate formula:
+```{r}
+lmer(
+  formula = m, 
+  data = D2, 
+  REML = TRUE
+)
+```
+
+So, those easy steps can be wrapped up into a function easily, like this:
+```{r}
+run_lmer <- function(D, g, m) {
+  
+  dm <- tibble(
+    genotype = g,
+    ss_ref = c(1, 1, 1),
+    d_add = c(0, 1, 2),
+    d_dom_with_s = c(0, 1, 0)
+  )
+  
+  D2 <- D %>%
+    left_join(dm, by = join_by(genotype))
+  
+  lmer(
+    formula = m, 
+    data = D2, 
+    REML = TRUE
+  )
+}
+```
+
+This function will return an object that is the return type of `lmer()`.  
+
+
+## Using `pmap()` to do `run_lmer()` over all rows of the tibble
+
+`pmap()` takes an argument `.l` which is a list of the columns you want to apply to the
+function.  If it is a named list, then the names correspond to the argument names of the
+function.  This is the easiest and safest way to run things.  If `.l` is not a named list,
+then the arguments are done positionally, which can be more error prone.
+
+Anyhoo, in our case, the `.l` list would be like this:
+```r
+.l = list(D = data, g = geno_vec, m = model_formula)
+```
+because we want to assign the `data` column to the `D` argument of `run_lmer()`
+and so forth.
+
+So, we run it again inside a `mutate()` like this:
+```{r}
+mod_results <- ready_for_lmer %>%
+  mutate(
+    lmer = pmap(
+      .l = list(D = data, g = geno_vec, m = model_formula),
+      .f = run_lmer
+    )
+  )
+
+mod_results
+```
+
+Great! Now we have just run 108 models.  How do we go about getting
+at the results?  We will talk about that later.  We can use `map()`-like
+functions to get at things, or we can put all the coefficients and results
+into tibbles using the 'broom.mixed' package.
+
