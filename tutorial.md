@@ -17,6 +17,11 @@ Using List Columns (tibble, tidyr, purrr)
 - [A function to run `lmer()`](#a-function-to-run-lmer)
 - [Using `pmap()` to do `run_lmer()` over all rows of the
   tibble](#using-pmap-to-do-run_lmer-over-all-rows-of-the-tibble)
+- [One thing you might to see is the summary of all the
+  models](#one-thing-you-might-to-see-is-the-summary-of-all-the-models)
+- [Or use broom.mixed](#or-use-broommixed)
+- [Let’s do a quick look at pvalues over loci and
+  groups](#lets-do-a-quick-look-at-pvalues-over-loci-and-groups)
 
 ## Introduction
 
@@ -723,7 +728,7 @@ m
 ```
 
     ## mo_da ~ I(d_add) + I(d_dom_with_s) + (1 | year_f)
-    ## <environment: 0x160182e80>
+    ## <environment: 0x15e9c8588>
 
 You don’t have to do this, but I find it really helpful when making a
 function to have some test variables.
@@ -881,3 +886,117 @@ Great! Now we have just run 108 models. How do we go about getting at
 the results? We will talk about that later. We can use `map()`-like
 functions to get at things, or we can put all the coefficients and
 results into tibbles using the ‘broom.mixed’ package.
+
+## One thing you might to see is the summary of all the models
+
+``` r
+mrs <- mod_results %>%
+  mutate(summary = map(.x = lmer, .f = summary))
+mrs
+```
+
+    ## # A tibble: 108 × 8
+    ##    Locus_new         group data     geno_vec model_name model_formula lmer      
+    ##    <chr>             <chr> <list>   <list>   <chr>      <list>        <list>    
+    ##  1 Omy_Ch28_greb1_m… CV    <tibble> <chr>    vanilla    <formula>     <lmrMdLmT>
+    ##  2 Omy_Ch28_greb1_m… CV    <tibble> <chr>    sex        <formula>     <lmrMdLmT>
+    ##  3 Omy_Ch28_greb1_m… CV    <tibble> <chr>    age        <formula>     <lmrMdLmT>
+    ##  4 Omy_Ch28_greb1_m… CV    <tibble> <chr>    vanilla    <formula>     <lmrMdLmT>
+    ##  5 Omy_Ch28_greb1_m… CV    <tibble> <chr>    sex        <formula>     <lmrMdLmT>
+    ##  6 Omy_Ch28_greb1_m… CV    <tibble> <chr>    age        <formula>     <lmrMdLmT>
+    ##  7 Omy_Ch28_1162524… CV    <tibble> <chr>    vanilla    <formula>     <lmrMdLmT>
+    ##  8 Omy_Ch28_1162524… CV    <tibble> <chr>    sex        <formula>     <lmrMdLmT>
+    ##  9 Omy_Ch28_1162524… CV    <tibble> <chr>    age        <formula>     <lmrMdLmT>
+    ## 10 Omy_Ch28_greb1_m… CV    <tibble> <chr>    vanilla    <formula>     <lmrMdLmT>
+    ## # ℹ 98 more rows
+    ## # ℹ 1 more variable: summary <list>
+
+## Or use broom.mixed
+
+``` r
+library(broom.mixed)
+```
+
+What do the three verbs do?
+
+``` r
+x <- mod_results$lmer[[1]]
+tidy(x)
+```
+
+    ## # A tibble: 4 × 8
+    ##   effect   group    term            estimate std.error statistic     df  p.value
+    ##   <chr>    <chr>    <chr>              <dbl>     <dbl>     <dbl>  <dbl>    <dbl>
+    ## 1 fixed    <NA>     (Intercept)        73.1       9.08      8.05   3.35  0.00265
+    ## 2 fixed    <NA>     I(d_add)            7.45      4.80      1.55 625.    0.121  
+    ## 3 ran_pars year_f   sd__(Intercept)    19.8      NA        NA     NA    NA      
+    ## 4 ran_pars Residual sd__Observation    36.3      NA        NA     NA    NA
+
+``` r
+augment(x)
+```
+
+    ## # A tibble: 631 × 15
+    ##    mo_da `I(d_add)` `I(d_dom_with_s)` year_f .fitted .resid   .hat .cooksd
+    ##    <dbl>   <I<dbl>>          <I<dbl>> <fct>    <dbl>  <dbl>  <dbl>   <dbl>
+    ##  1    38          0                 0 2017      106.  -68.0 0.0484  0.0940
+    ##  2    46          0                 0 2017      106.  -60.0 0.0484  0.0732
+    ##  3    52          0                 0 2017      106.  -54.0 0.0484  0.0593
+    ##  4    56          0                 0 2017      106.  -50.0 0.0484  0.0508
+    ##  5    58          0                 0 2017      106.  -48.0 0.0484  0.0468
+    ##  6    67          0                 0 2017      106.  -39.0 0.0484  0.0309
+    ##  7    70          0                 0 2017      106.  -36.0 0.0484  0.0264
+    ##  8    71          0                 0 2017      106.  -35.0 0.0484  0.0249
+    ##  9    76          0                 0 2017      106.  -30.0 0.0484  0.0183
+    ## 10   136          0                 0 2017      106.   30.0 0.0484  0.0183
+    ## # ℹ 621 more rows
+    ## # ℹ 7 more variables: .fixed <dbl>, .mu <dbl>, .offset <dbl>, .sqrtXwt <dbl>,
+    ## #   .sqrtrwt <dbl>, .weights <dbl>, .wtres <dbl>
+
+``` r
+glance(x)
+```
+
+    ## # A tibble: 1 × 7
+    ##    nobs sigma logLik   AIC   BIC REMLcrit df.residual
+    ##   <int> <dbl>  <dbl> <dbl> <dbl>    <dbl>       <int>
+    ## 1   631  36.3 -3163. 6334. 6352.    6326.         627
+
+## Let’s do a quick look at pvalues over loci and groups
+
+``` r
+tidied_results <- mod_results %>%
+  mutate(tidy = map(.x = lmer, .f = tidy))
+```
+
+To access these in a super tidy way, we can unnest them. Let’s do it!
+
+``` r
+unnested_tidies <- tidied_results %>%
+  select(Locus_new, group, model_name, tidy) %>%
+  rename(fish_group = group) %>%
+  unnest(tidy)
+```
+
+``` r
+# then we can look at all of those
+unnested_tidies %>%
+  filter(term == "I(d_add)") %>%
+  arrange(p.value)
+```
+
+    ## # A tibble: 108 × 11
+    ##    Locus_new         fish_group model_name effect group term  estimate std.error
+    ##    <chr>             <chr>      <chr>      <chr>  <chr> <chr>    <dbl>     <dbl>
+    ##  1 Omy_Ch28_1168474… NH         sex        fixed  <NA>  I(d_…     89.7      8.78
+    ##  2 Omy_Ch28_1168474… NH         sex        fixed  <NA>  I(d_…     89.7      8.78
+    ##  3 Omy_Ch28_1168474… NH         sex        fixed  <NA>  I(d_…    -89.7      8.78
+    ##  4 Omy_Ch28_1168474… NH         vanilla    fixed  <NA>  I(d_…     88.7      9.40
+    ##  5 Omy_Ch28_1168474… NH         vanilla    fixed  <NA>  I(d_…     88.7      9.40
+    ##  6 Omy_Ch28_1168474… NH         vanilla    fixed  <NA>  I(d_…    -88.7      9.40
+    ##  7 Omy_Ch28_1168331… NH         sex        fixed  <NA>  I(d_…     83.4      9.07
+    ##  8 Omy_Ch28_1168331… NH         vanilla    fixed  <NA>  I(d_…     82.9      9.48
+    ##  9 Omy_Ch28_1166757… NH         sex        fixed  <NA>  I(d_…    -90.6     10.5 
+    ## 10 Omy_Ch28_greb1_m… NH         sex        fixed  <NA>  I(d_…     90.6     10.5 
+    ## # ℹ 98 more rows
+    ## # ℹ 3 more variables: statistic <dbl>, df <dbl>, p.value <dbl>

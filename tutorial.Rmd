@@ -495,3 +495,56 @@ at the results?  We will talk about that later.  We can use `map()`-like
 functions to get at things, or we can put all the coefficients and results
 into tibbles using the 'broom.mixed' package.
 
+
+## One thing you might to see is the summary of all the models
+
+```{r}
+mrs <- mod_results %>%
+  mutate(summary = map(.x = lmer, .f = summary))
+mrs
+```
+
+
+## Or use broom.mixed
+
+```{r}
+library(broom.mixed)
+```
+
+What do the three verbs do?
+```{r}
+x <- mod_results$lmer[[1]]
+tidy(x)
+```
+
+
+```{r}
+augment(x)
+```
+
+```{r}
+glance(x)
+```
+
+
+## Let's do a quick look at pvalues over loci and groups
+
+```{r}
+tidied_results <- mod_results %>%
+  mutate(tidy = map(.x = lmer, .f = tidy))
+```
+
+To access these in a super tidy way, we can unnest them.  Let's do it!
+```{r}
+unnested_tidies <- tidied_results %>%
+  select(Locus_new, group, model_name, tidy) %>%
+  rename(fish_group = group) %>%
+  unnest(tidy)
+```
+
+```{r}
+# then we can look at all of those
+unnested_tidies %>%
+  filter(term == "I(d_add)") %>%
+  arrange(p.value)
+```
