@@ -728,7 +728,7 @@ m
 ```
 
     ## mo_da ~ I(d_add) + I(d_dom_with_s) + (1 | year_f)
-    ## <environment: 0x15e9c8588>
+    ## <environment: 0x13b086320>
 
 You don’t have to do this, but I find it really helpful when making a
 function to have some test variables.
@@ -996,7 +996,7 @@ unnested_tidies %>%
     ##  6 Omy_Ch28_1168474… NH         vanilla    fixed  <NA>  I(d_…    -88.7      9.40
     ##  7 Omy_Ch28_1168331… NH         sex        fixed  <NA>  I(d_…     83.4      9.07
     ##  8 Omy_Ch28_1168331… NH         vanilla    fixed  <NA>  I(d_…     82.9      9.48
-    ##  9 Omy_Ch28_1166757… NH         sex        fixed  <NA>  I(d_…    -90.6     10.5 
-    ## 10 Omy_Ch28_greb1_m… NH         sex        fixed  <NA>  I(d_…     90.6     10.5 
+    ##  9 Omy_Ch28_greb1_m… NH         sex        fixed  <NA>  I(d_…     90.6     10.5 
+    ## 10 Omy_Ch28_1166757… NH         sex        fixed  <NA>  I(d_…    -90.6     10.5 
     ## # ℹ 98 more rows
     ## # ℹ 3 more variables: statistic <dbl>, df <dbl>, p.value <dbl>
