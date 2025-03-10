@@ -36,3 +36,18 @@ destination rules:
   - `dest_gvcfs`: for making the gvcfs for every sample, but stopping at that point
   so that other gvcfs can later be made and added to these before loading the genomics
   databases.
+
+
+We also demonstrate a simple function that we have stored in this repository
+(in the `R` directory) that is tailored for converting our NextSeq sample sheets
+and sequencing outputs into a `units.tsv` file for running mega-non-model.  
+
+## A note on Snakemake
+
+The mamba package manager has undergone a few breaking changes, so the newest
+versions of Snakemake have been using the latest versions of conda (which use
+libmamba under the hood now.)  I set that up on one of my laptops, but I am
+currently still just using Snakemake 8.5.3 on SEDNA and on my work laptop, and that
+seems to be working pretty well with the old version of mamba that I have.
+
+However, we might want to be prepared for glitches for new users.  
