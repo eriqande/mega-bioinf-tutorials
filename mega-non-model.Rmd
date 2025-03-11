@@ -51,3 +51,64 @@ currently still just using Snakemake 8.5.3 on SEDNA and on my work laptop, and t
 seems to be working pretty well with the old version of mamba that I have.
 
 However, we might want to be prepared for glitches for new users.  
+
+
+## Setting up the units file and config file for mega-non-model
+
+We are going to focus on these two first, because those are the ones
+that are needed to do preliminary qc (a chromosomes.tsv and scaffold_groups.tsv
+file will need to be there, but won't be relevant.)
+
+### Putting together the units file
+
+This is a critical step, and it is easily done in R from the file listing
+of your fastqs.  
+
+First, let's review the mega-non-model instructions regarding this file.
+See it [https://github.com/eriqande/mega-non-model-wgs-snakeflow?tab=readme-ov-file#what-the-user-must-do-and-values-to-be-set-etc](here).
+
+To make this file, I got most of the necessary ingredients by using `ls` on SEDNA,
+where I have stored the files:
+```sh
+[sedna: eriq]--% pwd
+/share/swfsc/eriq
+[sedna: eriq]--% ls -l Landscape_Genomics/*/*.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc 1673418258 Mar  2 14:11 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R1_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc 1779605042 Mar  2 14:13 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R2_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc 1608758499 Mar  2 14:11 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R1_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc 1698883931 Mar  2 14:13 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R2_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc  845174892 Mar  2 14:11 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R1_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc  884389611 Mar  2 14:12 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R2_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc  799256079 Mar  2 14:11 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004226_M028_10H_S75_R1_001.fastq.gz
+...
+
+```
+and so forth.
+
+I put the results into this tutorial repo at [https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/data/mega-non/landscape-genomics-fastqs.txt](https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/data/mega-non/landscape-genomics-fastqs.txt).
+
+Since it is up there, we can actually just use it directly from R, so everyone can follow
+along (though you need an internet connection):
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+
+files_url <- "https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/data/mega-non/landscape-genomics-fastqs.txt"
+
+
+files_listing <- read_table(
+  files_url,
+  col_names = FALSE
+)
+
+# we can look at that
+files_listing
+```
+
+Columns X5 and X9 are what we need.  So, let's rename those and get them:
+```{r}
+f2 <- files_listing %>%
+  rename(bytes = X5, path = X9) %>%
+  select(path, bytes)
+
+f2
+```

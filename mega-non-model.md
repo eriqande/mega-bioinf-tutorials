@@ -3,6 +3,9 @@ Setting up a run on mega-non-model
 
 - [Introduction](#introduction)
 - [A note on Snakemake](#a-note-on-snakemake)
+- [Setting up the units file and config file for
+  mega-non-model](#setting-up-the-units-file-and-config-file-for-mega-non-model)
+  - [Putting together the units file](#putting-together-the-units-file)
 
 ## Introduction
 
@@ -50,3 +53,98 @@ and on my work laptop, and that seems to be working pretty well with the
 old version of mamba that I have.
 
 However, we might want to be prepared for glitches for new users.
+
+## Setting up the units file and config file for mega-non-model
+
+We are going to focus on these two first, because those are the ones
+that are needed to do preliminary qc (a chromosomes.tsv and
+scaffold_groups.tsv file will need to be there, but won’t be relevant.)
+
+### Putting together the units file
+
+This is a critical step, and it is easily done in R from the file
+listing of your fastqs.
+
+First, let’s review the mega-non-model instructions regarding this file.
+See it
+[https://github.com/eriqande/mega-non-model-wgs-snakeflow?tab=readme-ov-file#what-the-user-must-do-and-values-to-be-set-etc](here).
+
+To make this file, I got most of the necessary ingredients by using `ls`
+on SEDNA, where I have stored the files:
+
+``` sh
+[sedna: eriq]--% pwd
+/share/swfsc/eriq
+[sedna: eriq]--% ls -l Landscape_Genomics/*/*.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc 1673418258 Mar  2 14:11 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R1_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc 1779605042 Mar  2 14:13 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R2_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc 1608758499 Mar  2 14:11 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R1_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc 1698883931 Mar  2 14:13 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R2_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc  845174892 Mar  2 14:11 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R1_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc  884389611 Mar  2 14:12 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R2_001.fastq.gz
+-rw-rw-r-- 1 eanderson swfsc  799256079 Mar  2 14:11 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004226_M028_10H_S75_R1_001.fastq.gz
+...
+```
+
+and so forth.
+
+I put the results into this tutorial repo at
+<https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/data/mega-non/landscape-genomics-fastqs.txt>.
+
+Since it is up there, we can actually just use it directly from R, so
+everyone can follow along (though you need an internet connection):
+
+``` r
+library(tidyverse)
+
+files_url <- "https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/data/mega-non/landscape-genomics-fastqs.txt"
+
+
+files_listing <- read_table(
+  files_url,
+  col_names = FALSE
+)
+
+# we can look at that
+files_listing
+```
+
+    ## # A tibble: 204 × 9
+    ##    X1            X2 X3        X4            X5 X6       X7 X8     X9            
+    ##    <chr>      <dbl> <chr>     <chr>      <dbl> <chr> <dbl> <time> <chr>         
+    ##  1 -rw-rw-r--     1 eanderson swfsc 1673418258 Mar       2 14:11  Landscape_Gen…
+    ##  2 -rw-rw-r--     1 eanderson swfsc 1779605042 Mar       2 14:13  Landscape_Gen…
+    ##  3 -rw-rw-r--     1 eanderson swfsc 1608758499 Mar       2 14:11  Landscape_Gen…
+    ##  4 -rw-rw-r--     1 eanderson swfsc 1698883931 Mar       2 14:13  Landscape_Gen…
+    ##  5 -rw-rw-r--     1 eanderson swfsc  845174892 Mar       2 14:11  Landscape_Gen…
+    ##  6 -rw-rw-r--     1 eanderson swfsc  884389611 Mar       2 14:12  Landscape_Gen…
+    ##  7 -rw-rw-r--     1 eanderson swfsc  799256079 Mar       2 14:11  Landscape_Gen…
+    ##  8 -rw-rw-r--     1 eanderson swfsc  841027475 Mar       2 14:13  Landscape_Gen…
+    ##  9 -rw-rw-r--     1 eanderson swfsc  975532829 Mar       2 14:11  Landscape_Gen…
+    ## 10 -rw-rw-r--     1 eanderson swfsc 1028843740 Mar       2 14:13  Landscape_Gen…
+    ## # ℹ 194 more rows
+
+Columns X5 and X9 are what we need. So, let’s rename those and get them:
+
+``` r
+f2 <- files_listing %>%
+  rename(bytes = X5, path = X9) %>%
+  select(path, bytes)
+
+f2
+```
+
+    ## # A tibble: 204 × 2
+    ##    path                                                                    bytes
+    ##    <chr>                                                                   <dbl>
+    ##  1 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R1_… 1.67e9
+    ##  2 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R2_… 1.78e9
+    ##  3 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R1_… 1.61e9
+    ##  4 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R2_… 1.70e9
+    ##  5 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R1… 8.45e8
+    ##  6 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R2… 8.84e8
+    ##  7 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004226_M028_10H_S75_R1… 7.99e8
+    ##  8 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004226_M028_10H_S75_R2… 8.41e8
+    ##  9 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004444_M031_2B_S30_R1_… 9.76e8
+    ## 10 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004444_M031_2B_S30_R2_… 1.03e9
+    ## # ℹ 194 more rows
