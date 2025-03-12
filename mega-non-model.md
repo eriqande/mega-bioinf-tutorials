@@ -1,11 +1,40 @@
 Setting up a run on mega-non-model
 ================
 
+- [Preliminaries](#preliminaries)
 - [Introduction](#introduction)
 - [A note on Snakemake](#a-note-on-snakemake)
-- [Setting up the units file and config file for
-  mega-non-model](#setting-up-the-units-file-and-config-file-for-mega-non-model)
-  - [Putting together the units file](#putting-together-the-units-file)
+- [Setting up the units file](#setting-up-the-units-file)
+  - [Background on the units file](#background-on-the-units-file)
+  - [Making the units file from the dummy fastqs in this tutorial
+    repo](#making-the-units-file-from-the-dummy-fastqs-in-this-tutorial-repo)
+- [Question for Cassie: What are the adapter
+  seqences?](#question-for-cassie-what-are-the-adapter-seqences)
+- [Doing Preliminary QC](#doing-preliminary-qc)
+
+## Preliminaries
+
+If you want to be able to follow along with some of the R code here it
+could be helpful to:
+
+1.  clone this repo:
+    `git clone https://github.com/eriqande/mega-bioinf-tutorials.git`.
+    This is not essential, but will let you run some functions on the
+    dummy data.
+
+If you want to do the snakemake related things you will need to
+
+2.  Have snakemake up and running.
+3.  Have a `mega-non-model-wgs-snakeflow` repo somewhere (like on your
+    cluster) and have the latest changes in it:
+
+``` sh
+# on the main branch of eric's repo (not your own fork) do:
+git pull
+```
+
+4.  Have a directory with the fastqs and a SampleSheet.csv from a
+    NextSeq run.
 
 ## Introduction
 
@@ -17,9 +46,9 @@ lab get ready for that firehose.
 One of the first orders of business is going to be setting up a simple
 way to do some initial/preliminary QA/QC to assess how well these
 NextSeq runs are working. Much of what I will be describing related to
-this involve things that I recently added to the mega-non-model workflow
-to accommodate some of the issues that we foresee running into. These
-include:
+this involves things that I recently added to the mega-non-model
+workflow to accommodate some of the issues that we foresee running into.
+These include:
 
 - Being able to specify a `data_parent_dir` in the config that will be
   prefixed to every path to a fastq file in the units file. This makes
@@ -54,20 +83,21 @@ old version of mamba that I have.
 
 However, we might want to be prepared for glitches for new users.
 
-## Setting up the units file and config file for mega-non-model
+## Setting up the units file
 
 We are going to focus on these two first, because those are the ones
 that are needed to do preliminary qc (a chromosomes.tsv and
 scaffold_groups.tsv file will need to be there, but won’t be relevant.)
 
-### Putting together the units file
+### Background on the units file
 
-This is a critical step, and it is easily done in R from the file
-listing of your fastqs.
+Making the units file is a critical step, and it is easily done in R
+from the file listing of your fastqs, and from the SampleSheet.csv that
+comes off the machine. Here we just do a little tour of the background.
 
 First, let’s review the mega-non-model instructions regarding this file.
 See it
-[https://github.com/eriqande/mega-non-model-wgs-snakeflow?tab=readme-ov-file#what-the-user-must-do-and-values-to-be-set-etc](here).
+[here](https://github.com/eriqande/mega-non-model-wgs-snakeflow?tab=readme-ov-file#what-the-user-must-do-and-values-to-be-set-etc).
 
 To make this file, I got most of the necessary ingredients by using `ls`
 on SEDNA, where I have stored the files:
@@ -88,63 +118,142 @@ on SEDNA, where I have stored the files:
 
 and so forth.
 
-I put the results into this tutorial repo at
-<https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/data/mega-non/landscape-genomics-fastqs.txt>.
+The SampleSheet.csv that should be in the same directory as the fastqs
+looks [like
+this](https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/data/mega-non/SampleSheet.csv)
 
-Since it is up there, we can actually just use it directly from R, so
-everyone can follow along (though you need an internet connection):
+Ultimately, we want to combine the information in the file listing with
+what is in the sample sheet to get columns that have names like:
 
-``` r
-library(tidyverse)
+    sample  unit    library flowcell    platform    lane    sample_id   barcode fq1 fq2 kb1 kb2
 
-files_url <- "https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/data/mega-non/landscape-genomics-fastqs.txt"
+Doing this involves just a little rigamorale in R. I have wrapped up all
+the steps in some functions that are stored at:
+<https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/R/mega-non-setup.R>.
 
+Let’s have a quick look at those.
 
-files_listing <- read_table(
-  files_url,
-  col_names = FALSE
-)
+### Making the units file from the dummy fastqs in this tutorial repo
 
-# we can look at that
-files_listing
-```
+I made a bunch of fastq files with no content and saved them into this
+repo in the directory:
+`"data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/`.
+I also put a `SampleSheet.csv` in that directory.
 
-    ## # A tibble: 204 × 9
-    ##    X1            X2 X3        X4            X5 X6       X7 X8     X9            
-    ##    <chr>      <dbl> <chr>     <chr>      <dbl> <chr> <dbl> <time> <chr>         
-    ##  1 -rw-rw-r--     1 eanderson swfsc 1673418258 Mar       2 14:11  Landscape_Gen…
-    ##  2 -rw-rw-r--     1 eanderson swfsc 1779605042 Mar       2 14:13  Landscape_Gen…
-    ##  3 -rw-rw-r--     1 eanderson swfsc 1608758499 Mar       2 14:11  Landscape_Gen…
-    ##  4 -rw-rw-r--     1 eanderson swfsc 1698883931 Mar       2 14:13  Landscape_Gen…
-    ##  5 -rw-rw-r--     1 eanderson swfsc  845174892 Mar       2 14:11  Landscape_Gen…
-    ##  6 -rw-rw-r--     1 eanderson swfsc  884389611 Mar       2 14:12  Landscape_Gen…
-    ##  7 -rw-rw-r--     1 eanderson swfsc  799256079 Mar       2 14:11  Landscape_Gen…
-    ##  8 -rw-rw-r--     1 eanderson swfsc  841027475 Mar       2 14:13  Landscape_Gen…
-    ##  9 -rw-rw-r--     1 eanderson swfsc  975532829 Mar       2 14:11  Landscape_Gen…
-    ## 10 -rw-rw-r--     1 eanderson swfsc 1028843740 Mar       2 14:13  Landscape_Gen…
-    ## # ℹ 194 more rows
+I tossed out a few of the fastq file pairs, and I also deleted a few of
+the samples from the `SampleSheet.csv` in the directory so that everyone
+can see what happens when there are fastqs that are not in the
+SampleSheet, or samples in the SampleSheet that don’t have fastqs.
+(There are some warnings issued and it returns a report).
 
-Columns X5 and X9 are what we need. So, let’s rename those and get them:
+The main function for this is `write_units_file()` and it takes the
+relative path to the directory holding all the fastqs. (As we will see
+later, it makes good sense to put all of these different run directories
+within a single parent data directory). Let’s run it!
 
 ``` r
-f2 <- files_listing %>%
-  rename(bytes = X5, path = X9) %>%
-  select(path, bytes)
-
-f2
+functions <- "https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/R/mega-non-setup.R"
+source(functions)  # this defines the needed functions
 ```
 
-    ## # A tibble: 204 × 2
-    ##    path                                                                    bytes
-    ##    <chr>                                                                   <dbl>
-    ##  1 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R1_… 1.67e9
-    ##  2 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R2_… 1.78e9
-    ##  3 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R1_… 1.61e9
-    ##  4 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R2_… 1.70e9
-    ##  5 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R1… 8.45e8
-    ##  6 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R2… 8.84e8
-    ##  7 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004226_M028_10H_S75_R1… 7.99e8
-    ##  8 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004226_M028_10H_S75_R2… 8.41e8
-    ##  9 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004444_M031_2B_S30_R1_… 9.76e8
-    ## 10 Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004444_M031_2B_S30_R2_… 1.03e9
-    ## # ℹ 194 more rows
+    ## Loading required package: tidyverse
+
+    ## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+    ## ✔ dplyr     1.1.4     ✔ readr     2.1.5
+    ## ✔ forcats   1.0.0     ✔ stringr   1.5.1
+    ## ✔ ggplot2   3.5.1     ✔ tibble    3.2.1
+    ## ✔ lubridate 1.9.4     ✔ tidyr     1.3.1
+    ## ✔ purrr     1.0.4     
+    ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+    ## ✖ dplyr::filter() masks stats::filter()
+    ## ✖ dplyr::lag()    masks stats::lag()
+    ## ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+
+``` r
+# then call it
+dump <- write_units_file("data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX")
+```
+
+    ## Warning in
+    ## write_units_file("data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX"):
+    ## Not all samples in SampleSheet.csv have fastq paths.  Check return tibble
+    ## $missing_paths for info.
+
+    ## Warning in
+    ## write_units_file("data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX"):
+    ## Not all fastq paths have corresponding entries in SampleSheet.csv.  Check
+    ## return tibble $missing_barcodes for info.
+
+We see that it gave some warnings. But it also created a units file that
+is inside the fastq directory. This is in:
+`data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/units.tsv`,
+and it looks like:
+
+``` sh
+head data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/units.tsv
+```
+
+    ## sample   unit    library flowcell    platform    lane    sample_id   barcode fq1 fq2 kb1 kb2
+    ## M004147_M028_1A  1   M004147_M028_1A_TAGCTGGC_TACCGGCT   LGRun1  ILLUMINA    1   M004147_M028_1A TAGCTGGC+TACCGGCT   data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R1_001.fastq.gz data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004147_M028_1A_S62_R2_001.fastq.gz 0   0
+    ## M004182_M028_5D  1   M004182_M028_5D_GTTGGCGT_CAGCAGTC   LGRun1  ILLUMINA    1   M004182_M028_5D GTTGGCGT+CAGCAGTC   data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R1_001.fastq.gz data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004182_M028_5D_S61_R2_001.fastq.gz 0   0
+    ## M004225_M028_10G 1   M004225_M028_10G_ATTGGACA_TTGCTGGA  LGRun1  ILLUMINA    1   M004225_M028_10G    ATTGGACA+TTGCTGGA   data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R1_001.fastq.gz    data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004225_M028_10G_S74_R2_001.fastq.gz    0   0
+    ## M004226_M028_10H 1   M004226_M028_10H_ACCCGTTG_CAGCTTCG  LGRun1  ILLUMINA    1   M004226_M028_10H    ACCCGTTG+CAGCTTCG   data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004226_M028_10H_S75_R1_001.fastq.gz    data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004226_M028_10H_S75_R2_001.fastq.gz    0   0
+    ## M004444_M031_2B  1   M004444_M031_2B_CCTTCCAT_CACGCAAT   LGRun1  ILLUMINA    1   M004444_M031_2B CCTTCCAT+CACGCAAT   data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004444_M031_2B_S30_R1_001.fastq.gz data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004444_M031_2B_S30_R2_001.fastq.gz 0   0
+    ## M004446_M031_2D  1   M004446_M031_2D_TTCCAGGT_CAGTGCTT   LGRun1  ILLUMINA    1   M004446_M031_2D TTCCAGGT+CAGTGCTT   data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004446_M031_2D_S3_R1_001.fastq.gz  data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004446_M031_2D_S3_R2_001.fastq.gz  0   0
+    ## M004452_M031_3B  1   M004452_M031_3B_CCAGTATC_AGCGAGAT   LGRun1  ILLUMINA    1   M004452_M031_3B CCAGTATC+AGCGAGAT   data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004452_M031_3B_S10_R1_001.fastq.gz data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004452_M031_3B_S10_R2_001.fastq.gz 0   0
+    ## M004453_M031_3C  1   M004453_M031_3C_GTCAGTCA_CGGCATTA   LGRun1  ILLUMINA    1   M004453_M031_3C GTCAGTCA+CGGCATTA   data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004453_M031_3C_S29_R1_001.fastq.gz data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004453_M031_3C_S29_R2_001.fastq.gz 0   0
+    ## M004465_M031_4G  1   M004465_M031_4G_ATCTGACC_CTCGACTT   LGRun1  ILLUMINA    1   M004465_M031_4G ATCTGACC+CTCGACTT   data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004465_M031_4G_S23_R1_001.fastq.gz data/mega-non/empty_files/Landscape_Genomics/250301_VH02170_2_2227GLJNX/M004465_M031_4G_S23_R2_001.fastq.gz 0   0
+
+If you want to investigate the errors, you can see the SampleSheet
+entries that don’t have fastqs with this:
+
+``` r
+dump$missing_paths
+```
+
+    ## # A tibble: 2 × 15
+    ##   sample         kb1   kb2 fq1   fq2    lane sample_id platform flowcell library
+    ##   <chr>        <dbl> <dbl> <chr> <chr> <int> <chr>     <chr>    <chr>    <chr>  
+    ## 1 M076895_M77…    NA    NA <NA>  <NA>     NA <NA>      <NA>     LGRun1   M07689…
+    ## 2 M076891_M77…    NA    NA <NA>  <NA>     NA <NA>      <NA>     LGRun1   M07689…
+    ## # ℹ 5 more variables: LibraryPrepKitName <lgl>, IndexAdapterKitName <lgl>,
+    ## #   Index <chr>, Index2 <chr>, barcode <chr>
+
+And you can see the fastqs that don’t have corresponding SampleSheet
+entries with this:
+
+``` r
+dump$missing_barcodes
+```
+
+    ## # A tibble: 4 × 15
+    ##   sample         kb1   kb2 fq1   fq2    lane sample_id platform flowcell library
+    ##   <chr>        <dbl> <dbl> <chr> <chr> <int> <chr>     <chr>    <chr>    <chr>  
+    ## 1 M076712_M77…     0     0 data… data…     1 M076712_… ILLUMINA <NA>     <NA>   
+    ## 2 M077119_M77…     0     0 data… data…     1 M077119_… ILLUMINA <NA>     <NA>   
+    ## 3 M077120_M77…     0     0 data… data…     1 M077120_… ILLUMINA <NA>     <NA>   
+    ## 4 M079477_M80…     0     0 data… data…     1 M079477_… ILLUMINA <NA>     <NA>   
+    ## # ℹ 5 more variables: LibraryPrepKitName <lgl>, IndexAdapterKitName <lgl>,
+    ## #   Index <chr>, Index2 <chr>, barcode <chr>
+
+## Question for Cassie: What are the adapter seqences?
+
+I just want to check and make sure that we have the right ones in the
+workflow. (Though with fastp it doesn’t make too much difference).
+
+## Doing Preliminary QC
+
+I have modified the mega-non-model workflow to have a “destination rule”
+that simply requests that fastp get run on everything and then all those
+results get displayed with multiqc.
+
+These steps do not require a reference genome or a list of chromosomes
+and scaffold groups, etc., so that it is not necessary to customize a
+config file for them. You just have to be able to:
+
+1.  tell snakemake where the data folder is
+2.  tell snakemake where the units.tsv folder is
+
+Here I am going to demonstrate how this all works in a series of steps
+on SEDNA. It should work just fine on hummingbird or even megabox, as
+well.
