@@ -107,8 +107,17 @@ files_listing
 Columns X5 and X9 are what we need.  So, let's rename those and get them:
 ```{r}
 f2 <- files_listing %>%
-  rename(bytes = X5, path = X9) %>%
-  select(path, bytes)
+  rename(fq = X9) %>%
+  mutate(kb = as.numeric(X5) / 1024) %>%
+  select(fq, kb)
 
 f2
 ```
+
+Now we want to combine that information with what is in the sample sheet to get columns that
+have names like:
+```
+sample	unit	library	flowcell	platform	lane	sample_id	barcode	fq1	fq2	kb1	kb2
+```
+Doing this involves just a little rigamoral in R.  I have actually wrapped up all the steps
+in some functions that are stored [here]()
