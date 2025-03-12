@@ -11,6 +11,12 @@ Setting up a run on mega-non-model
 - [Question for Cassie: What are the adapter
   seqences?](#question-for-cassie-what-are-the-adapter-seqences)
 - [Doing Preliminary QC](#doing-preliminary-qc)
+  - [Step 1: Make sure I have latest mega-non-model
+    code](#step-1-make-sure-i-have-latest-mega-non-model-code)
+  - [Step 2. Create a units file and record the parent data
+    dir](#step-2-create-a-units-file-and-record-the-parent-data-dir)
+  - [Step 3. Do a prelim_qc run with
+    mega-non-model](#step-3-do-a-prelim_qc-run-with-mega-non-model)
 
 ## Preliminaries
 
@@ -257,3 +263,92 @@ config file for them. You just have to be able to:
 Here I am going to demonstrate how this all works in a series of steps
 on SEDNA. It should work just fine on hummingbird or even megabox, as
 well.
+
+### Step 1: Make sure I have latest mega-non-model code
+
+Just getting my new additions.
+
+``` sh
+# note I am in my "test" repo for mega-non-model
+(snakemake-8.5.3) [sedna: mega-non-model-wgs-snakeflow]--% pwd
+/home/eanderson/scratch/TEST/mega-non-model-wgs-snakeflow
+
+# pull changes into main
+(snakemake-8.5.3) [sedna: mega-non-model-wgs-snakeflow]--% git pull
+remote: Enumerating objects: 6, done.
+remote: Counting objects: 100% (6/6), done.
+remote: Total 6 (delta 5), reused 6 (delta 5), pack-reused 0 (from 0)
+Unpacking objects: 100% (6/6), done.
+From github.com:eriqande/mega-non-model-wgs-snakeflow
+   f748c07..a6fe699  main                         -> origin/main
+   6b46b7f..a6fe699  add-features-for-lab-nextseq -> origin/add-features-for-lab-nextseq
+Updating f748c07..a6fe699
+Fast-forward
+ .test/config/config.yaml             |  9 +++++++++
+ smk-8-slurm/jdb/sedna/config.yaml    |  4 +---
+ workflow/rules/common.smk            | 11 ++++++++++-
+ workflow/rules/destination-rules.smk |  7 +++++++
+ workflow/rules/qc.smk                | 23 +++++++++++++++++++++++
+ 5 files changed, 50 insertions(+), 4 deletions(-)
+```
+
+### Step 2. Create a units file and record the parent data dir
+
+``` sh
+# note that I am in what I consider to be my parent data dir. So the output
+# here is the absolute path to my parent_data_dir
+[node10: Landscape_Genomics]--% pwd
+/share/swfsc/eriq/Landscape_Genomics
+
+# do a short tail listing of the run directory we want to make a units file for
+[node10: Landscape_Genomics]--% ls 250301_VH02170_2_2227GLJNX/* | tail
+250301_VH02170_2_2227GLJNX/M086769_M881_5F_S8_R2_001.fastq.gz
+250301_VH02170_2_2227GLJNX/M086773_M881_6B_S7_R1_001.fastq.gz
+250301_VH02170_2_2227GLJNX/M086773_M881_6B_S7_R2_001.fastq.gz
+250301_VH02170_2_2227GLJNX/M086813_M881_11B_S17_R1_001.fastq.gz
+250301_VH02170_2_2227GLJNX/M086813_M881_11B_S17_R2_001.fastq.gz
+250301_VH02170_2_2227GLJNX/M086821_M881_12B_S37_R1_001.fastq.gz
+250301_VH02170_2_2227GLJNX/M086821_M881_12B_S37_R2_001.fastq.gz
+250301_VH02170_2_2227GLJNX/M086826_M881_12G_S44_R1_001.fastq.gz
+250301_VH02170_2_2227GLJNX/M086826_M881_12G_S44_R2_001.fastq.gz
+250301_VH02170_2_2227GLJNX/SampleSheet.csv
+```
+
+Note that the SampleSheet.csv is in there.
+
+Now, we use R to create the units file:
+
+``` r
+[node10: Landscape_Genomics]--% module load R/4.0.3
+[node10: Landscape_Genomics]--% R
+
+# now we are in R:
+functions <- "https://raw.githubusercontent.com/eriqande/mega-bioinf-tutorials/refs/heads/main/R/mega-non-setup.R"
+source(functions)  # this defines the needed functions
+
+# then call the function
+dump <- write_units_file(fastq_dir = "250301_VH02170_2_2227GLJNX")
+```
+
+### Step 3. Do a prelim_qc run with mega-non-model
+
+For this, we are back in our mega-non-model directory:
+
+``` sh
+[node10: mega-non-model-wgs-snakeflow]--% pwd
+/home/eanderson/scratch/TEST/mega-non-model-wgs-snakeflow
+```
+
+We will do a dry-run. We use the default config file in the .test
+directory, but we update the units file location and the parent_data_dir
+on the command line.
+
+``` sh
+[node10: mega-non-model-wgs-snakeflow]--% conda activate snakemake-8.5.3
+
+
+snakemake -np --cores 20 --use-conda  dest_prelim_qc --configfile .test/config/config.yaml   --config units= /share/swfsc/eriq/Landscape_Genomics/250301_VH02170_2_2227GLJNX/units.tsv  parent_data_dir=/share/swfsc/eriq/Landscape_Genomics/
+```
+
+Notice that you need to have a trailing slash on the parent_data_dir
+when you specify it.
