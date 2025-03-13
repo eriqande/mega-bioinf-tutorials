@@ -182,7 +182,7 @@ groups, etc., so that it is not necessary to customize a config file for them.  
 just have to be able to:
 
 1. tell snakemake where the data folder is
-2. tell snakemake where the units.tsv folder is
+2. tell snakemake where the units.tsv file is
 
 Here I am going to demonstrate how this all works in a series of steps on SEDNA.
 It should work just fine on hummingbird or even megabox, as well.
@@ -262,14 +262,49 @@ For this, we are back in our mega-non-model directory:
 ```
 
 We will do a dry-run.  We use the default config file in the .test
-directory, but we update the units file location and the parent_data_dir
-on the command line.
+directory, but we will update the units file location and the parent_data_dir
+in it.  One should be able to update that on the command line, but snakemake's
+way of doing that seems buggy.
 ```sh
 [node10: mega-non-model-wgs-snakeflow]--% conda activate snakemake-8.5.3
 
+# copy the test config and then edit it:
+cp .test/config/config.yaml prelim_qc_config.yaml
+nano prelim_qc_config.yaml
 
-snakemake -np --cores 20 --use-conda  dest_prelim_qc --configfile .test/config/config.yaml   --config units= /share/swfsc/eriq/Landscape_Genomics/250301_VH02170_2_2227GLJNX/units.tsv  parent_data_dir=/share/swfsc/eriq/Landscape_Genomics/
+# see the changes I made---only to units and parent_data_dir:
+[node01: mega-non-model-wgs-snakeflow]--% diff .test/config/config.yaml prelim_qc_config.yaml
+1c1
+< units: .test/config/units.tsv
+---
+> units: /share/swfsc/eriq/Landscape_Genomics/250301_VH02170_2_2227GLJNX/units.tsv
+12c12
+< data_parent_dir: ""
+---
+> data_parent_dir: "/share/swfsc/eriq/Landscape_Genomics/"
+
+# Note that the data_parent_dir must have the trailing slash
+
+# now, we can do a dry run:
+snakemake -np --cores 20 --use-conda  dest_prelim_qc --configfile  prelim_qc_config.yaml
+
+# which tells us:
+Job stats:
+job                   count
+------------------  -------
+dest_prelim_qc            1
+multiqc_dir_no_map        1
+trim_reads_pe           102
+total                   104
 
 ```
+I'll say again here: **Notice that you need to have a trailing slash on the parent_data_dir when you specify it.**
 
-Notice that you need to have a trailing slash on the parent_data_dir when you specify it.
+
+### Do a full run
+
+I am on a node on SEDNA here so I am going to run this with 20 cores:
+```sh
+snakemake -p --cores 20 --use-conda  dest_prelim_qc --configfile  prelim_qc_config.yaml
+```
+
